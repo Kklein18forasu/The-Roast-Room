@@ -22,6 +22,18 @@ const db = getDatabase(app);
 const $ = (id) => document.getElementById(id);
 const randId = () => Math.random().toString(36).slice(2, 9).toUpperCase();
 
+function safeShow(id) {
+  const el = $(id);
+  if (el) el.classList.remove("hidden");
+  else console.warn("Missing element:", id);
+}
+
+function safeHide(id) {
+  const el = $(id);
+  if (el) el.classList.add("hidden");
+  else console.warn("Missing element:", id);
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -1238,6 +1250,10 @@ function renderGameOver() {
   }
 
   const ul = $("finalScoreList");
+  if (!ul) {
+    console.warn("Missing element: finalScoreList");
+    return;
+  }
   ul.innerHTML = "";
 
   const rows = game.players
@@ -1281,15 +1297,20 @@ function renderGameOver() {
 
   const finalScorePanel = $("finalScorePanel");
   const showButton = $("btnShowFinalScores");
-  if (showFinalScorecard) {
-    finalScorePanel?.classList.remove("hidden");
-    showButton?.classList.add("hidden");
-  } else {
-    finalScorePanel?.classList.add("hidden");
-    showButton?.classList.remove("hidden");
+
+  if (!showButton) {
+    console.warn("Missing element: btnShowFinalScores");
   }
 
-  $("hostGameOverControls").classList.toggle("hidden", !isHost() || !showFinalScorecard);
+  if (showFinalScorecard) {
+    safeShow("finalScorePanel");
+    safeHide("btnShowFinalScores");
+    if (isHost()) safeShow("hostGameOverControls");
+  } else {
+    safeHide("finalScorePanel");
+    safeShow("btnShowFinalScores");
+    safeHide("hostGameOverControls");
+  }
 }
 
 function render() {
@@ -1337,34 +1358,57 @@ $("btnBackToReveal").addEventListener("click", () => setPhase("reveal"));
 
 $("btnPlayAgain").addEventListener("click", hostStartRound);
 $("btnPlayAgainLeave").addEventListener("click", leaveRoom);
-$("btnShowFinalScores").addEventListener("click", () => {
-  showFinalScorecard = true;
-  renderGameOver();
-});
-$("btnStartNewGame").addEventListener("click", async () => {
-  if (!isHost() || !gameRef) return;
-  await runTransaction(gameRef, (cur) => {
-    if (!cur) return cur;
+{
+  const showFinalButton = $("btnShowFinalScores");
+  if (showFinalButton) {
+    showFinalButton.addEventListener("click", () => {
+      showFinalScorecard = true;
+      safeShow("finalScorePanel");
+      if (isHost()) safeShow("hostGameOverControls");
+      safeHide("btnShowFinalScores");
+    });
+  } else {
+    console.warn("Missing element: btnShowFinalScores");
+  }
+}
+{
+  const newGameButton = $("btnStartNewGame");
+  if (newGameButton) {
+    newGameButton.addEventListener("click", async () => {
+      if (!isHost() || !gameRef) return;
+      await runTransaction(gameRef, (cur) => {
+        if (!cur) return cur;
 
-    cur.phase = "lobby";
-    cur.winnerId = null;
-    cur.round = null;
+        cur.phase = "lobby";
+        cur.winnerId = null;
+        cur.round = null;
 
-    cur.players = (cur.players ?? []).map(p => ({
-      ...p,
-      roastMeter: 0
-    }));
+        cur.players = (cur.players ?? []).map(p => ({
+          ...p,
+          roastMeter: 0
+        }));
 
-    cur.scores = {};
+        cur.scores = {};
 
-    return cur;
-  });
-});
-$("btnEndGame").addEventListener("click", async () => {
-  if (!isHost() || !gameRef) return;
-  await set(gameRef, null);
-  leaveRoom();
-});
+        return cur;
+      });
+    });
+  } else {
+    console.warn("Missing element: btnStartNewGame");
+  }
+}
+{
+  const endGameButton = $("btnEndGame");
+  if (endGameButton) {
+    endGameButton.addEventListener("click", async () => {
+      if (!isHost() || !gameRef) return;
+      await set(gameRef, null);
+      leaveRoom();
+    });
+  } else {
+    console.warn("Missing element: btnEndGame");
+  }
+}
 
 function boot() {
   // Attempt automatic reconnect if we have a persisted room
