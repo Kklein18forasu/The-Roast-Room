@@ -359,7 +359,11 @@ async function hostStartRound() {
   const order = $("revealOrder").value;
 
   const picked = pickQuestions(qPerPlayer);
-  const players = game.players;
+  const players = game.players ?? [];
+  if (players.length === 0) {
+    alert("Cannot start round: no players are present in the room.");
+    return;
+  }
 
   const queue = order === "random"
     ? shuffle(players.map(p => p.id))
