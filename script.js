@@ -1243,8 +1243,8 @@ function renderScore() {
 function renderGameOver() {
   if (!game) return;
 
-  // Only proceed when the game is in gameover phase and a winner is recorded.
-  if (game.phase !== "gameover" || !game.winnerId) {
+  // Render the gameover UI whenever the phase is gameover.
+  if (game.phase !== "gameover") {
     hideWinnerOverlay();
     return;
   }
@@ -1264,15 +1264,13 @@ function renderGameOver() {
     }))
     .sort((a, b) => b.roastMeter - a.roastMeter);
 
-  // Decide champion: prefer explicit winnerId
-  const winner = game.players.find(p => p.id === game.winnerId);
+  // Decide champion: prefer explicit winnerId, otherwise take the top-ranked player.
+  const winner = game.players.find(p => p.id === game.winnerId) || rows[0] || null;
 
   if (winner) {
-    $("winnerOverlay").classList.remove("hidden");
-    setTimeout(() => {
-      $("winnerName").textContent = winner?.name ?? "Champion";
-      $("championName").textContent = winner?.name ?? "Champion";
-    }, 300);
+    safeShow("winnerOverlay");
+    $("winnerName").textContent = winner.name || "Champion";
+    $("championName").textContent = winner.name || "Champion";
   } else {
     hideWinnerOverlay();
   }
@@ -1295,17 +1293,15 @@ function renderGameOver() {
     ul.appendChild(li);
   });
 
-  const finalScorePanel = $("finalScorePanel");
-  const showButton = $("btnShowFinalScores");
-
-  if (!showButton) {
-    console.warn("Missing element: btnShowFinalScores");
-  }
-
   if (showFinalScorecard) {
     safeShow("finalScorePanel");
     safeHide("btnShowFinalScores");
-    if (isHost()) safeShow("hostGameOverControls");
+    safeHide("winnerOverlay");
+    if (isHost()) {
+      safeShow("hostGameOverControls");
+    } else {
+      safeHide("hostGameOverControls");
+    }
   } else {
     safeHide("finalScorePanel");
     safeShow("btnShowFinalScores");
@@ -1358,57 +1354,37 @@ $("btnBackToReveal").addEventListener("click", () => setPhase("reveal"));
 
 $("btnPlayAgain").addEventListener("click", hostStartRound);
 $("btnPlayAgainLeave").addEventListener("click", leaveRoom);
-{
-  const showFinalButton = $("btnShowFinalScores");
-  if (showFinalButton) {
-    showFinalButton.addEventListener("click", () => {
-      showFinalScorecard = true;
-      safeShow("finalScorePanel");
-      if (isHost()) safeShow("hostGameOverControls");
-      safeHide("btnShowFinalScores");
-    });
-  } else {
-    console.warn("Missing element: btnShowFinalScores");
-  }
-}
-{
-  const newGameButton = $("btnStartNewGame");
-  if (newGameButton) {
-    newGameButton.addEventListener("click", async () => {
-      if (!isHost() || !gameRef) return;
-      await runTransaction(gameRef, (cur) => {
-        if (!cur) return cur;
 
-        cur.phase = "lobby";
-        cur.winnerId = null;
-        cur.round = null;
+$("btnShowFinalScores").addEventListener("click", () => {
+  showFinalScorecard = true;
+  renderGameOver();
+});
 
-        cur.players = (cur.players ?? []).map(p => ({
-          ...p,
-          roastMeter: 0
-        }));
+$("btnStartNewGame").addEventListener("click", async () => {
+  if (!isHost() || !gameRef) return;
+  await runTransaction(gameRef, (cur) => {
+    if (!cur) return cur;
 
-        cur.scores = {};
+    cur.phase = "lobby";
+    cur.winnerId = null;
+    cur.round = null;
 
-        return cur;
-      });
-    });
-  } else {
-    console.warn("Missing element: btnStartNewGame");
-  }
-}
-{
-  const endGameButton = $("btnEndGame");
-  if (endGameButton) {
-    endGameButton.addEventListener("click", async () => {
-      if (!isHost() || !gameRef) return;
-      await set(gameRef, null);
-      leaveRoom();
-    });
-  } else {
-    console.warn("Missing element: btnEndGame");
-  }
-}
+    cur.players = (cur.players ?? []).map(p => ({
+      ...p,
+      roastMeter: 0
+    }));
+
+    cur.scores = {};
+
+    return cur;
+  });
+});
+
+$("btnEndGame").addEventListener("click", async () => {
+  if (!isHost() || !gameRef) return;
+  await set(gameRef, null);
+  leaveRoom();
+});
 
 function boot() {
   // Attempt automatic reconnect if we have a persisted room
