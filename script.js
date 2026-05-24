@@ -272,7 +272,10 @@ function openRoom(roomCode) {
 
   unsubscribe = onValue(gameRef, (snapshot) => {
     const data = snapshot.val();
-    if (!data) return;
+    if (!data) {
+      leaveRoom();
+      return;
+    }
 
     game = data;
     // Set role based on persisted ID
@@ -1286,7 +1289,7 @@ function renderGameOver() {
     showButton?.classList.remove("hidden");
   }
 
-  $("hostGameOverControls").classList.toggle("hidden", !isHost());
+  $("hostGameOverControls").classList.toggle("hidden", !isHost() || !showFinalScorecard);
 }
 
 function render() {
@@ -1337,6 +1340,30 @@ $("btnPlayAgainLeave").addEventListener("click", leaveRoom);
 $("btnShowFinalScores").addEventListener("click", () => {
   showFinalScorecard = true;
   renderGameOver();
+});
+$("btnStartNewGame").addEventListener("click", async () => {
+  if (!isHost() || !gameRef) return;
+  await runTransaction(gameRef, (cur) => {
+    if (!cur) return cur;
+
+    cur.phase = "lobby";
+    cur.winnerId = null;
+    cur.round = null;
+
+    cur.players = (cur.players ?? []).map(p => ({
+      ...p,
+      roastMeter: 0
+    }));
+
+    cur.scores = {};
+
+    return cur;
+  });
+});
+$("btnEndGame").addEventListener("click", async () => {
+  if (!isHost() || !gameRef) return;
+  await set(gameRef, null);
+  leaveRoom();
 });
 
 function boot() {
