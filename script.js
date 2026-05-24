@@ -220,6 +220,13 @@ function setTopStatus() {
   meLabel.textContent = me.role === "none" ? "—" : `${me.role.toUpperCase()} (${me.name || me.id})`;
 }
 
+function hideWinnerOverlay() {
+  const overlay = $("winnerOverlay");
+  if (!overlay) return;
+  overlay.classList.add("hidden");
+  $("winnerName").textContent = "";
+}
+
 function isHost() {
   return !!game && me.role === "host" && game.hostId === me.id;
 }
@@ -369,6 +376,8 @@ async function hostStartRound() {
   };
 
   game.phase = "answering";
+  game.winnerId = null;
+  hideWinnerOverlay();
   await writeGame();
 }
 
@@ -1157,6 +1166,11 @@ function renderScore() {
 function renderGameOver() {
   if (!game) return;
 
+  if (game.phase !== "gameover") {
+    hideWinnerOverlay();
+    return;
+  }
+
   const ul = $("finalScoreList");
   ul.innerHTML = "";
 
@@ -1169,7 +1183,7 @@ function renderGameOver() {
     .sort((a, b) => b.roastMeter - a.roastMeter);
 
   // Decide champion: prefer explicit winnerId, otherwise top of roster
-  const winner = game.players.find(p => p.id === game.winnerId) || (rows[0] ? game.players.find(p => p.id === rows[0].id) : null);
+  const winner = game.winnerId ? game.players.find(p => p.id === game.winnerId) : null;
 
   if (winner) {
     $("winnerOverlay").classList.remove("hidden");
@@ -1177,8 +1191,9 @@ function renderGameOver() {
       $("winnerName").textContent = winner?.name ?? "Champion";
       $("championName").textContent = winner?.name ?? "Champion";
     }, 300);
+  } else {
+    hideWinnerOverlay();
   }
-  ul.innerHTML = "";
 
   rows.forEach((r, idx) => {
     const li = document.createElement("li");
@@ -1209,7 +1224,12 @@ function render() {
   renderWaiting();
   renderReveal();
   renderScore();
-  renderGameOver();
+
+  if (game.phase === "gameover") {
+    renderGameOver();
+  } else {
+    hideWinnerOverlay();
+  }
 
   $("btnStartRound").classList.toggle("hidden", !isHost());
   $("hostSetup").classList.toggle("hidden", !isHost());
