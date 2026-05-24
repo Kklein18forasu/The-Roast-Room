@@ -168,14 +168,17 @@ const QUESTION_BANK = [
 
 // ---------- App State ----------
 const ME_KEY = "arb_me_id"; // Anonymous Roast Burnbook
+const ME_ROOM_KEY = "arb_me_room"; // last room joined (for reconnect)
+const ME_NAME_KEY = "arb_me_name"; // persisted display name
 
 const me = {
   id: localStorage.getItem(ME_KEY) || randId(),
-  name: "",
+  name: localStorage.getItem(ME_NAME_KEY) || "",
   role: "none",
-  room: ""
+  room: localStorage.getItem(ME_ROOM_KEY) || ""
 };
 
+// persist id immediately
 localStorage.setItem(ME_KEY, me.id);
 
 let game = null;
@@ -199,7 +202,7 @@ const screens = {
   wait: $("screenWait"),
   reveal: $("screenReveal"),
   score: $("screenScore"),
-  gameOver: $("screengameover")
+  gameover: $("screenGameOver")
 };
 
 const roomLabel = $("roomLabel");
@@ -314,6 +317,10 @@ async function createRoomAsHost() {
   const room = randId();
 
   me.role = "host";
+  // persist room + name for reconnects
+  localStorage.setItem(ME_ROOM_KEY, room);
+  localStorage.setItem(ME_NAME_KEY, me.name);
+
   openRoom(room);
 
   game = {
@@ -431,6 +438,10 @@ async function joinRoomAsPlayer() {
 
   me.role = "player";
   me.name = name;
+  // persist room + name for reconnects
+  localStorage.setItem(ME_ROOM_KEY, room);
+  localStorage.setItem(ME_NAME_KEY, me.name);
+
   openRoom(room);
 
   // confirm room exists
@@ -478,6 +489,31 @@ function leaveRoom() {
 
   setTopStatus();
   showScreen("room");
+}
+
+// Ensure a player entry exists (or is updated) for this persistent id
+async function ensurePlayerPresence(room) {
+  if (!room) return;
+  try {
+    await runTransaction(ref(db, `rooms/${room}/game`), (cur) => {
+      if (!cur) return cur;
+      cur.players ??= [];
+      cur.scores ??= {};
+
+      const exists = cur.players.some(p => p.id === me.id);
+      if (!exists) {
+        cur.players.push({ id: me.id, name: me.name || "", joinedAt: Date.now(), roastMeter: 0 });
+        cur.scores[me.id] = cur.scores[me.id] ?? 0;
+      } else {
+        const p = cur.players.find(p => p.id === me.id);
+        if (p && me.name) p.name = me.name;
+      }
+
+      return cur;
+    });
+  } catch (err) {
+    console.warn("ensurePlayerPresence failed", err);
+  }
 }
 
 // ---------- Submissions ----------
@@ -677,12 +713,15 @@ async function ownerLockIn() {
     // Favorite gets +1 roast meter
     const favPlayer = cur.players.find(p => p.id === fav.authorId);
     if (favPlayer) {
-      favPlayer.roastMeter = (favPlayer.roastMeter ?? 0) + 1;
-      favAuthorId = fav.authorId;
+      // Do NOT award points if the author answered about themselves
+      if (fav.authorId !== aboutId) {
+        favPlayer.roastMeter = (favPlayer.roastMeter ?? 0) + 1;
+        favAuthorId = fav.authorId;
 
-      if (favPlayer.roastMeter >= 10) {
-        cur.phase = "gameover";
-        cur.winnerId = favPlayer.id;
+        if (favPlayer.roastMeter >= 10) {
+          cur.phase = "gameover";
+          cur.winnerId = favPlayer.id;
+        }
       }
     }
 
@@ -690,12 +729,15 @@ async function ownerLockIn() {
     if (creative) {
       const crePlayer = cur.players.find(p => p.id === creative.authorId);
       if (crePlayer) {
-        crePlayer.roastMeter = (crePlayer.roastMeter ?? 0) + 1;
-        creAuthorId = creative.authorId;
+        // Do NOT award points if the author answered about themselves
+        if (creative.authorId !== aboutId) {
+          crePlayer.roastMeter = (crePlayer.roastMeter ?? 0) + 1;
+          creAuthorId = creative.authorId;
 
-        if (crePlayer.roastMeter >= 10) {
-          cur.phase = "gameover";
-          cur.winnerId = crePlayer.id;
+          if (crePlayer.roastMeter >= 10) {
+            cur.phase = "gameover";
+            cur.winnerId = crePlayer.id;
+          }
         }
       }
     }
@@ -1113,16 +1155,9 @@ function renderScore() {
 }
 
 function renderGameOver() {
-  if (!game?.winnerId) return;
+  if (!game) return;
 
-  const winner = game.players.find(p => p.id === game.winnerId);
-  
-$("winnerOverlay").classList.remove("hidden");
-setTimeout(() => {
-  $("winnerName").textContent = winner?.name ?? "Champion";
-}, 900);
-
- const ul = $("finalScoreList");
+  const ul = $("finalScoreList");
   ul.innerHTML = "";
 
   const rows = game.players
@@ -1132,6 +1167,18 @@ setTimeout(() => {
       roastMeter: p.roastMeter ?? 0
     }))
     .sort((a, b) => b.roastMeter - a.roastMeter);
+
+  // Decide champion: prefer explicit winnerId, otherwise top of roster
+  const winner = game.players.find(p => p.id === game.winnerId) || (rows[0] ? game.players.find(p => p.id === rows[0].id) : null);
+
+  if (winner) {
+    $("winnerOverlay").classList.remove("hidden");
+    setTimeout(() => {
+      $("winnerName").textContent = winner?.name ?? "Champion";
+      $("championName").textContent = winner?.name ?? "Champion";
+    }, 300);
+  }
+  ul.innerHTML = "";
 
   rows.forEach((r, idx) => {
     const li = document.createElement("li");
@@ -1191,7 +1238,37 @@ $("btnPlayAgain").addEventListener("click", hostStartRound);
 $("btnPlayAgainLeave").addEventListener("click", leaveRoom);
 
 function boot() {
-  showScreen("room");
+  // Attempt automatic reconnect if we have a persisted room
   setTopStatus();
+
+  const savedRoom = localStorage.getItem(ME_ROOM_KEY);
+  if (savedRoom) {
+    // verify room exists then join silently
+    get(ref(db, `rooms/${savedRoom}/game`)).then(snap => {
+      const data = snap.val();
+      if (!data) {
+        // room no longer exists
+        localStorage.removeItem(ME_ROOM_KEY);
+        localStorage.removeItem(ME_NAME_KEY);
+        showScreen("room");
+        return;
+      }
+
+      // restore local state and ensure player object exists
+      me.room = savedRoom;
+      me.name = localStorage.getItem(ME_NAME_KEY) || me.name;
+      me.role = data.hostId === me.id ? "host" : "player";
+      // ensure entry exists in players array (no duplicates)
+      ensurePlayerPresence(savedRoom).then(() => {
+        openRoom(savedRoom);
+        showScreen(data.phase || "lobby");
+      });
+    }).catch(() => {
+      showScreen("room");
+    });
+    return;
+  }
+
+  showScreen("room");
 }
 boot();
