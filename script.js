@@ -335,16 +335,48 @@ async function createRoomAsHost() {
 
   openRoom(room);
 
+  const now = Date.now();
+  console.log("Host created:", me.id, me.name);
+
   game = {
     phase: "lobby",
     hostId: me.id,
-    players: [{ id: me.id, name: me.name, joinedAt: Date.now(), roastMeter: 0 }],
+    players: [
+      {
+        id: me.id,
+        name: me.name,
+        joinedAt: now,
+        roastMeter: 0
+      }
+    ],
     round: null,
     scores: { [me.id]: 0 },
     winnerId: null
   };
 
   await writeGame();
+
+  await runTransaction(gameRef, (cur) => {
+    if (!cur) return cur;
+
+    cur.players ??= [];
+    cur.scores ??= {};
+
+    const exists = cur.players.some((p) => p.id === me.id);
+    if (!exists) {
+      cur.players.push({
+        id: me.id,
+        name: me.name,
+        joinedAt: Date.now(),
+        roastMeter: 0
+      });
+    }
+
+    cur.hostId = me.id;
+    cur.scores[me.id] = cur.scores[me.id] ?? 0;
+
+    return cur;
+  });
 
   setTopStatus();
 
@@ -360,8 +392,10 @@ async function hostStartRound() {
 
   const picked = pickQuestions(qPerPlayer);
   const players = game.players ?? [];
-  if (players.length === 0) {
-    alert("Cannot start round: no players are present in the room.");
+  console.log("Players before round:", game.players);
+
+  if (players.length < 2) {
+    alert("Need at least 2 players to start.");
     return;
   }
 
