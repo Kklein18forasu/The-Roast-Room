@@ -189,6 +189,7 @@ let lastRoundQuestionIds = [];
 
 let answeringUiRoundKey = null;
 let draftAnswersByQid = new Map();
+let showFinalScorecard = false;
 
 // Global variables for reveal selections
 let favPickId = null;
@@ -474,7 +475,7 @@ async function hostNextReveal() {
   );
 
   if (r.revealIndex >= r.revealQueue.length) {
-    game.phase = "score";
+    game.phase = game.winnerId ? "gameover" : "score";
   } else {
     game.phase = "reveal";
   }
@@ -716,11 +717,10 @@ async function increaseRoastMeter(playerId) {
 
   // Check if reached 10 (Roast Champion)
   if (player.roastMeter >= 10) {
-    game.phase = "gameover";
-    game.winnerId = playerId;
-    await writeGame();
-    render();
-    return true; // Signal that game is over
+    if (!game.winnerId) {
+      game.winnerId = playerId;
+    }
+    return true;
   }
 
   return false;
@@ -788,8 +788,9 @@ async function ownerLockIn() {
         favAuthorId = fav.authorId;
 
         if (favPlayer.roastMeter >= 10) {
-          cur.phase = "gameover";
-          cur.winnerId = favPlayer.id;
+          if (!cur.winnerId) {
+            cur.winnerId = favPlayer.id;
+          }
         }
       }
     }
@@ -804,8 +805,9 @@ async function ownerLockIn() {
           creAuthorId = creative.authorId;
 
           if (crePlayer.roastMeter >= 10) {
-            cur.phase = "gameover";
-            cur.winnerId = crePlayer.id;
+            if (!cur.winnerId) {
+              cur.winnerId = crePlayer.id;
+            }
           }
         }
       }
@@ -1274,11 +1276,25 @@ function renderGameOver() {
     ul.appendChild(li);
   });
 
+  const finalScorePanel = $("finalScorePanel");
+  const showButton = $("btnShowFinalScores");
+  if (showFinalScorecard) {
+    finalScorePanel?.classList.remove("hidden");
+    showButton?.classList.add("hidden");
+  } else {
+    finalScorePanel?.classList.add("hidden");
+    showButton?.classList.remove("hidden");
+  }
+
   $("hostGameOverControls").classList.toggle("hidden", !isHost());
 }
 
 function render() {
   if (!game) return;
+
+  if (game.phase !== "gameover") {
+    showFinalScorecard = false;
+  }
 
   renderLobby();
   renderAnswering();
@@ -1318,6 +1334,10 @@ $("btnBackToReveal").addEventListener("click", () => setPhase("reveal"));
 
 $("btnPlayAgain").addEventListener("click", hostStartRound);
 $("btnPlayAgainLeave").addEventListener("click", leaveRoom);
+$("btnShowFinalScores").addEventListener("click", () => {
+  showFinalScorecard = true;
+  renderGameOver();
+});
 
 function boot() {
   // Attempt automatic reconnect if we have a persisted room
