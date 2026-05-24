@@ -211,6 +211,8 @@ const meLabel = $("meLabel");
 
 function showScreen(which) {
   Object.values(screens).forEach(s => s?.classList.add("hidden"));
+  // If switching away from the gameover screen, ensure any winner overlay is hidden
+  if (which !== "gameover") hideWinnerOverlay();
   screens[which]?.classList.remove("hidden");
 }
 
@@ -225,6 +227,9 @@ function hideWinnerOverlay() {
   if (!overlay) return;
   overlay.classList.add("hidden");
   $("winnerName").textContent = "";
+  // clear other winner-specific text to avoid stale UI showing for new joiners
+  const champ = $("championName");
+  if (champ) champ.textContent = "";
 }
 
 function isHost() {
@@ -1166,7 +1171,8 @@ function renderScore() {
 function renderGameOver() {
   if (!game) return;
 
-  if (game.phase !== "gameover") {
+  // Only proceed when the game is in gameover phase and a winner is recorded.
+  if (game.phase !== "gameover" || !game.winnerId) {
     hideWinnerOverlay();
     return;
   }
@@ -1182,8 +1188,8 @@ function renderGameOver() {
     }))
     .sort((a, b) => b.roastMeter - a.roastMeter);
 
-  // Decide champion: prefer explicit winnerId, otherwise top of roster
-  const winner = game.winnerId ? game.players.find(p => p.id === game.winnerId) : null;
+  // Decide champion: prefer explicit winnerId
+  const winner = game.players.find(p => p.id === game.winnerId);
 
   if (winner) {
     $("winnerOverlay").classList.remove("hidden");
@@ -1225,7 +1231,8 @@ function render() {
   renderReveal();
   renderScore();
 
-  if (game.phase === "gameover") {
+  // Only render the gameover UI when the game is actually over AND a winner is set.
+  if (game.phase === "gameover" && game.winnerId) {
     renderGameOver();
   } else {
     hideWinnerOverlay();
