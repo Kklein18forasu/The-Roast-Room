@@ -378,6 +378,7 @@ async function createRoomAsHost() {
     return cur;
   });
 
+  console.log("PLAYERS AFTER CREATE:", game.players);
   setTopStatus();
 
   // helpful UX
@@ -392,7 +393,14 @@ async function hostStartRound() {
 
   const picked = pickQuestions(qPerPlayer);
   const players = game.players ?? [];
-  console.log("Players before round:", game.players);
+  console.log("HOST ID:", me.id);
+  console.log("PLAYERS BEFORE ROUND:", game.players);
+
+  const hostExists = players.some((p) => p.id === game.hostId);
+  if (!hostExists) {
+    alert("Host is missing from players. Fix room setup before starting.");
+    return;
+  }
 
   if (players.length < 2) {
     alert("Need at least 2 players to start.");
