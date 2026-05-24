@@ -516,19 +516,28 @@ async function joinRoomAsPlayer() {
   // transaction: add player safely
   await runTransaction(ref(db, `rooms/${room}/game`), (cur) => {
     if (!cur) return cur;
+
     cur.players ??= [];
     cur.scores ??= {};
 
-    const exists = cur.players.some(p => p.id === me.id);
-    if (!exists) {
-      cur.players.push({ id: me.id, name: me.name, joinedAt: Date.now(), roastMeter: 0 });
-      cur.scores[me.id] = cur.scores[me.id] ?? 0;
+    console.log("Before join players:", cur.players);
+
+    const existingPlayer = cur.players.find(p => p.id === me.id);
+    if (existingPlayer) {
+      existingPlayer.name = me.name;
+      existingPlayer.roastMeter = existingPlayer.roastMeter ?? 0;
     } else {
-      // update name if rejoining
-      const p = cur.players.find(p => p.id === me.id);
-      if (p) p.name = me.name;
+      cur.players.push({
+        id: me.id,
+        name: me.name,
+        joinedAt: Date.now(),
+        roastMeter: 0
+      });
     }
 
+    cur.scores[me.id] = cur.scores[me.id] ?? 0;
+
+    console.log("After join players:", cur.players);
     return cur;
   });
 
