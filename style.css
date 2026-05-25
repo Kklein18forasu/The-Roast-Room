@@ -372,10 +372,17 @@ textarea { min-height: 90px; resize: vertical; }
   inset: 0;
   overflow: hidden;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 24px;
   background: #140b0b;
   z-index: 9999;
+  padding: 20px;
+}
+
+.winnerOverlay.hidden {
+  display: none !important;
 }
 
 /* flame wall */
@@ -404,6 +411,11 @@ textarea { min-height: 90px; resize: vertical; }
   opacity: 0;
   animation: winnerReveal 1s ease forwards;
   animation-delay: 1.6s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 20;
 }
 
 #winnerName {
@@ -446,6 +458,22 @@ textarea { min-height: 90px; resize: vertical; }
   }
 }
 
-.answerBlock {
-  touch-action: manipulation;
+#finalScorePanel {
+  position: relative;
+  z-index: 30;
+  width: 100%;
+  max-width: 600px;
+}
+
+#finalScorePanel.hidden {
+  display: none !important;
+}
+
+.leaveBtn {
+  background: rgba(255, 58, 50, 0.8);
+}
+
+.leaveBtn:hover {
+  background: rgba(255, 58, 50, 1);
+  box-shadow: 0 0 12px rgba(255, 58, 50, 0.5);
 }

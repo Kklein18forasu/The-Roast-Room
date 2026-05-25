@@ -63,7 +63,7 @@
       <div class="screenHeader">
         <h2>Lobby</h2>
         <div class="row">
-          <button class="ghost" id="btnLeave">Leave</button>
+          <button class="ghost leaveBtn">Leave Game</button>
           <button class="primary hidden" id="btnStartRound">Start Round (Host)</button>
         </div>
       </div>
@@ -99,6 +99,7 @@
       <div class="screenHeader">
         <h2>Answer Prompts</h2>
         <div class="row">
+          <button class="ghost leaveBtn">Leave Game</button>
           <button class="ghost" id="btnBackToLobby">Back to Lobby</button>
           <button class="primary" id="btnSubmitAnswers">Submit Answers</button>
         </div>
@@ -117,7 +118,12 @@
 
     <!-- SCREEN: WAITING -->
     <section class="screen hidden" id="screenWait">
-      <h2>Submitted ✅</h2>
+      <div class="screenHeader">
+        <h2>Submitted ✅</h2>
+        <div class="row">
+          <button class="ghost leaveBtn">Leave Game</button>
+        </div>
+      </div>
       <p>Waiting for others…</p>
       <p><strong>Submitted:</strong> <span id="submittedCount">0</span>/<span id="totalCount">0</span></p>
 
@@ -135,6 +141,7 @@
   <div class="screenHeader">
     <h2>Reveal</h2>
     <div class="row">
+      <button class="ghost leaveBtn">Leave Game</button>
       <button class="ghost hidden" id="btnNextReveal">Next Page (Host)</button>
     </div>
   </div>
@@ -173,6 +180,7 @@
       <div class="screenHeader">
         <h2>Scores</h2>
         <div class="row">
+          <button class="ghost leaveBtn">Leave Game</button>
           <button class="primary hidden" id="btnBackToReveal">Back (Host)</button>
           <button class="primary hidden" id="btnNewRound">New Round (Host)</button>
         </div>
@@ -185,20 +193,26 @@
 
     <!-- SCREEN: GAME OVER -->
     <section class="screen hidden" id="screenGameOver">
-      <div class="panel">
-        <h2>🔥 ROAST CHAMPION 🔥</h2>
-        <p class="roastChampionName">
-          <strong id="championName">—</strong>
-        </p>
-        <p class="hint">
-          Has reached the maximum Roast Meter level 10 and claimed victory!
-        </p>
+      <div class="screenHeader">
+        <h2>Game Over</h2>
+        <div class="row">
+          <button class="ghost leaveBtn">Leave Game</button>
+        </div>
       </div>
 
-      <div class="panel">
-        <button class="primary" id="btnShowFinalScores">View Full Scorecard</button>
-        <div id="finalScorePanel" class="panel hidden" style="margin-top: 16px;">
-          <h3>Final Scorecard</h3>
+      <div id="finalScorePanel" class="hidden">
+        <div class="panel">
+          <h2>🔥 ROAST CHAMPION 🔥</h2>
+          <p class="roastChampionName">
+            <strong id="championName">—</strong>
+          </p>
+          <p class="hint">
+            Has reached the maximum Roast Meter level 10 and claimed victory!
+          </p>
+        </div>
+
+        <div class="panel">
+          <h3>Final Rankings</h3>
           <ul id="finalScoreList" class="list"></ul>
 
           <div id="hostFinalControls" class="hidden">
@@ -215,18 +229,18 @@
 
   <footer class="footer">
     <p class="hint">
-      Prototype uses BroadcastChannel (same browser / same machine). Later we can swap to Firebase/Supabase for true online multiplayer.
+/Supabase for true online multiplayer.
     </p>
   </footer>
 
   <div id="winnerOverlay" class="winnerOverlay hidden">
-  <div class="flameWall"></div>
-
-  <div class="winnerContent">
-    <h1 id="winnerName"></h1>
-    <p class="winnerText">ROAST CHAMPION 🔥</p>
+    <div class="flameWall"></div>
+    <div class="winnerContent">
+      <h1 id="winnerName"></h1>
+      <p class="winnerText">ROAST CHAMPION 🔥</p>
+      <button id="btnShowFinalScores" class="primary" style="margin-top: 24px; position: relative; z-index: 20;">View Full Scorecard</button>
+    </div>
   </div>
-</div>
 
   <script type="module" src="script.js"></script>
   

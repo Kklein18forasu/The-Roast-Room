@@ -1295,7 +1295,6 @@ function renderGameOver() {
 
   if (showFinalScorecard) {
     safeShow("finalScorePanel");
-    safeHide("btnShowFinalScores");
     safeHide("winnerOverlay");
     if (isHost()) {
       safeShow("hostFinalControls");
@@ -1304,8 +1303,7 @@ function renderGameOver() {
     }
   } else {
     safeHide("finalScorePanel");
-    safeShow("btnShowFinalScores");
-    safeHide("hostFinalControls");
+    safeShow("hostFinalControls", false); // hide by default
   }
 }
 
@@ -1339,7 +1337,11 @@ function render() {
 // ---------- Buttons ----------
 $("btnCreateRoom").addEventListener("click", createRoomAsHost);
 $("btnJoinRoom").addEventListener("click", joinRoomAsPlayer);
-$("btnLeave").addEventListener("click", leaveRoom);
+
+// Attach leave listeners to all Leave Game buttons
+document.querySelectorAll(".leaveBtn").forEach(btn => {
+  btn.addEventListener("click", leaveRoom);
+});
 
 $("btnStartRound").addEventListener("click", hostStartRound);
 $("btnBackToLobby").addEventListener("click", () => setPhase("lobby"));
@@ -1375,6 +1377,10 @@ $("btnPlayAgain").addEventListener("click", async () => {
 
 $("btnShowFinalScores").addEventListener("click", () => {
   showFinalScorecard = true;
+  // Hide the winner overlay to reveal the final scorecard
+  const overlay = $("winnerOverlay");
+  if (overlay) overlay.classList.add("hidden");
+  // Show the final score panel
   $("finalScorePanel").classList.remove("hidden");
   $("hostFinalControls").classList.toggle("hidden", !isHost());
 });
