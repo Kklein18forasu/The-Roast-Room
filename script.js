@@ -1298,14 +1298,14 @@ function renderGameOver() {
     safeHide("btnShowFinalScores");
     safeHide("winnerOverlay");
     if (isHost()) {
-      safeShow("hostGameOverControls");
+      safeShow("hostFinalControls");
     } else {
-      safeHide("hostGameOverControls");
+      safeHide("hostFinalControls");
     }
   } else {
     safeHide("finalScorePanel");
     safeShow("btnShowFinalScores");
-    safeHide("hostGameOverControls");
+    safeHide("hostFinalControls");
   }
 }
 
@@ -1352,16 +1352,9 @@ $("btnLockIn").addEventListener("click", ownerLockIn);
 $("btnNewRound").addEventListener("click", hostStartRound);
 $("btnBackToReveal").addEventListener("click", () => setPhase("reveal"));
 
-$("btnPlayAgain").addEventListener("click", hostStartRound);
-$("btnPlayAgainLeave").addEventListener("click", leaveRoom);
-
-$("btnShowFinalScores").addEventListener("click", () => {
-  showFinalScorecard = true;
-  renderGameOver();
-});
-
-$("btnStartNewGame").addEventListener("click", async () => {
+$("btnPlayAgain").addEventListener("click", async () => {
   if (!isHost() || !gameRef) return;
+
   await runTransaction(gameRef, (cur) => {
     if (!cur) return cur;
 
@@ -1369,15 +1362,21 @@ $("btnStartNewGame").addEventListener("click", async () => {
     cur.winnerId = null;
     cur.round = null;
 
-    cur.players = (cur.players ?? []).map(p => ({
-      ...p,
-      roastMeter: 0
-    }));
+    cur.players ??= [];
+    cur.players.forEach(p => {
+      p.roastMeter = 0;
+    });
 
     cur.scores = {};
 
     return cur;
   });
+});
+
+$("btnShowFinalScores").addEventListener("click", () => {
+  showFinalScorecard = true;
+  $("finalScorePanel").classList.remove("hidden");
+  $("hostFinalControls").classList.toggle("hidden", !isHost());
 });
 
 $("btnEndGame").addEventListener("click", async () => {
