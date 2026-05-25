@@ -197,8 +197,6 @@ let game = null;
 let gameRef = null;
 let unsubscribe = null;
 
-let lastRoundQuestionIds = [];
-
 let answeringUiRoundKey = null;
 let draftAnswersByQid = new Map();
 let showFinalScorecard = false;
@@ -257,22 +255,22 @@ function currentRevealPlayerId() {
 }
 
 function pickQuestions(qPerPlayer) {
-  const shuffled = shuffle([...QUESTION_BANK]);
+  const used = game?.usedQuestionIds ?? [];
+  let available = QUESTION_BANK.filter(q => !used.includes(q.id));
 
-  let filtered = shuffled.filter(
-    q => !lastRoundQuestionIds.includes(q.id)
-  );
-
-  // fallback if the bank is too small
-  if (filtered.length < qPerPlayer) {
-    filtered = shuffled;
+  if (available.length < qPerPlayer) {
+    available = [...QUESTION_BANK];
+    game.usedQuestionIds = [];
   }
 
-  const selected = filtered.slice(0, qPerPlayer);
+  const picked = shuffle(available).slice(0, qPerPlayer);
 
-  lastRoundQuestionIds = selected.map(q => q.id);
+  game.usedQuestionIds = [
+    ...(game.usedQuestionIds ?? []),
+    ...picked.map(q => q.id)
+  ];
 
-  return selected;
+  return picked;
 }
 
 // ---------- Firebase Room ----------
@@ -367,6 +365,7 @@ async function createRoomAsHost() {
     ],
     round: null,
     scores: { [me.id]: 0 },
+    usedQuestionIds: [],
     winnerId: null
   };
 
