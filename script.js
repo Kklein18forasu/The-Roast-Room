@@ -1275,23 +1275,28 @@ function renderGameOver() {
     hideWinnerOverlay();
   }
 
-  rows.forEach((r, idx) => {
+  if (rows.length === 0) {
     const li = document.createElement("li");
-    
-    // Create roast meter bar (10 fire emojis)
-    const meterBar = "🔥".repeat(r.roastMeter) + "▫️".repeat(10 - r.roastMeter);
-
-    li.innerHTML = `
-      <div style="flex-grow: 1;">
-        <span>${idx + 1}. ${escapeHtml(r.name)}</span>
-        <div style="font-size: 14px; margin-top: 4px; letter-spacing: 2px;">
-          ${meterBar}
-        </div>
-      </div>
-      <span><strong>${r.roastMeter}</strong></span>
-    `;
+    li.innerHTML = `<span style="color: var(--muted);">No player scores available.</span>`;
     ul.appendChild(li);
-  });
+  } else {
+    rows.forEach((r, idx) => {
+      const li = document.createElement("li");
+      
+      // Create roast meter bar (10 fire emojis)
+      const meterBar = "🔥".repeat(r.roastMeter) + "▫️".repeat(10 - r.roastMeter);
+
+      li.innerHTML = `
+        <div style="flex-grow: 1;">
+          <span>${idx + 1}. ${escapeHtml(r.name)} — <strong>${r.roastMeter}</strong> 🔥</span>
+          <div style="font-size: 12px; margin-top: 6px; letter-spacing: 2px; opacity: 0.8;">
+            ${meterBar}
+          </div>
+        </div>
+      `;
+      ul.appendChild(li);
+    });
+  }
 
   if (showFinalScorecard) {
     safeShow("finalScorePanel");
