@@ -255,12 +255,13 @@ function currentRevealPlayerId() {
 }
 
 function pickQuestions(qPerPlayer) {
-  const used = game?.usedQuestionIds ?? [];
+  const used = game.usedQuestionIds ?? [];
   let available = QUESTION_BANK.filter(q => !used.includes(q.id));
 
   if (available.length < qPerPlayer) {
-    available = [...QUESTION_BANK];
+    // Not enough unused questions remain, reset the full history and start fresh.
     game.usedQuestionIds = [];
+    available = [...QUESTION_BANK];
   }
 
   const picked = shuffle(available).slice(0, qPerPlayer);
