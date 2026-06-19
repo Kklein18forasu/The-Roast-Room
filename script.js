@@ -402,6 +402,7 @@ async function createRoomAsHost() {
 }
 
 async function hostStartRound() {
+  console.log("Start round clicked");
   if (!isHost()) return;
 
   const qPerPlayer = clampNumber($("qPerPlayer").value, 1, 10);
@@ -409,8 +410,7 @@ async function hostStartRound() {
 
   const picked = pickQuestions(qPerPlayer);
   const players = game.players ?? [];
-  console.log("HOST ID:", me.id);
-  console.log("PLAYERS BEFORE ROUND:", game.players);
+  console.log("Players:", game.players);
 
   const hostExists = players.some((p) => p.id === game.hostId);
   if (!hostExists) {
@@ -440,7 +440,12 @@ async function hostStartRound() {
     winningAnswerId: null,
     favoriteAnswerId: null,
     creativeAnswerId: null,
+    // Hurry Up feature: initialize with safe defaults
+    hurryVotes: {},
+    hurryDeadlines: {},
   };
+
+  console.log("Round created:", game.round);
 
   game.phase = "answering";
   game.winnerId = null;
@@ -1158,12 +1163,6 @@ function renderAnswering() {
   const targetOptions = game.players
     .map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
     .join("");
-
-  const isBeingHurried = game.round.hurryDeadlines?.[me.id];
-  const hurryLabel = $("hurryWarning");
-  if (hurryLabel) {
-    hurryLabel.classList.toggle("hidden", !isBeingHurried);
-  }
 
   r.questions.forEach((q, i) => {
     const div = document.createElement("div");
