@@ -635,12 +635,22 @@ for (const q of (game.round.questions ?? [])) {
 
   cur.round.submissions ??= [];
   cur.round.submittedPlayerIds ??= [];
+  cur.round.hurryVotes ??= {};
+  cur.round.hurryDeadlines ??= {};
 
   // prevent double submit
   if (cur.round.submittedPlayerIds.includes(me.id)) return cur;
 
   cur.round.submissions.push(...my);
   cur.round.submittedPlayerIds.push(me.id);
+
+  // cancel any active hurry-up for the target who just submitted
+  if (cur.round.hurryVotes[me.id]) {
+    delete cur.round.hurryVotes[me.id];
+  }
+  if (cur.round.hurryDeadlines[me.id]) {
+    delete cur.round.hurryDeadlines[me.id];
+  }
 
   // ❌ DO NOT change cur.phase here
 
@@ -1128,7 +1138,13 @@ function renderAnswering() {
 
   const roundKey = getRoundKey(r);
 
-  // 🔥 If we already built this round's UI, do nothing
+  const isBeingHurried = game.round.hurryDeadlines?.[me.id];
+  const hurryLabel = $("hurryWarning");
+  if (hurryLabel) {
+    hurryLabel.classList.toggle("hidden", !isBeingHurried);
+  }
+
+  // 🔥 If we already built this round's UI, do not rebuild it, but still update the hurry warning.
   if (answeringUiRoundKey === roundKey) {
     return;
   }
@@ -1142,6 +1158,12 @@ function renderAnswering() {
   const targetOptions = game.players
     .map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
     .join("");
+
+  const isBeingHurried = game.round.hurryDeadlines?.[me.id];
+  const hurryLabel = $("hurryWarning");
+  if (hurryLabel) {
+    hurryLabel.classList.toggle("hidden", !isBeingHurried);
+  }
 
   r.questions.forEach((q, i) => {
     const div = document.createElement("div");
@@ -1193,17 +1215,213 @@ draftAnswersByQid.set(q.id, {
 }
 
 
+const hurryTimeouts = new Map();
+let hurryCountdownInterval = null;
+
+function requiredHurryVotes() {
+  const activeIds = game?.round?.activePlayerIds ?? [];
+  return Math.ceil(activeIds.length / 2);
+}
+
+function hasSubmitted() {
+  return !!game?.round?.submittedPlayerIds?.includes(me.id);
+}
+
+function clearHurryCountdownInterval() {
+  if (hurryCountdownInterval) {
+    clearInterval(hurryCountdownInterval);
+    hurryCountdownInterval = null;
+  }
+}
+
+function watchHurryCountdown() {
+  clearHurryCountdownInterval();
+  if (!game?.phase || game.phase !== "answering" || !game?.round) return;
+
+  const deadline = game.round.hurryDeadlines?.[me.id];
+  if (!deadline) return;
+
+  const update = () => {
+    const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    const label = $("hurryRemaining");
+    if (label) label.textContent = String(remaining);
+    if (remaining <= 0) {
+      clearHurryCountdownInterval();
+      render();
+    }
+  };
+
+  update();
+  hurryCountdownInterval = setInterval(update, 1000);
+}
+
+function getHurryVoteCount(targetId) {
+  return Object.keys(game?.round?.hurryVotes?.[targetId] ?? {}).length;
+}
+
+function voteHurry(targetId) {
+  if (!game?.round) return;
+  if (!hasSubmitted()) return;
+  if (game.round.submittedPlayerIds?.includes(targetId)) return;
+  if (targetId === me.id) return;
+
+  runTransaction(gameRef, (cur) => {
+    if (!cur?.round) return cur;
+    if (cur.phase !== "answering") return cur;
+    cur.round.hurryVotes ??= {};
+    cur.round.hurryDeadlines ??= {};
+    cur.round.submittedPlayerIds ??= [];
+
+    if (cur.round.submittedPlayerIds.includes(targetId)) return cur;
+
+    const votesForTarget = cur.round.hurryVotes[targetId] ?? {};
+    if (votesForTarget[me.id]) return cur;
+
+    votesForTarget[me.id] = true;
+    cur.round.hurryVotes[targetId] = votesForTarget;
+
+    const count = Object.keys(votesForTarget).length;
+    const required = Math.ceil((cur.round.activePlayerIds?.length ?? 0) / 2);
+    if (count >= required) {
+      if (!cur.round.hurryDeadlines[targetId]) {
+        cur.round.hurryDeadlines[targetId] = Date.now() + 60000;
+      }
+    }
+
+    return cur;
+  }).catch(err => {
+    console.error("Failed to vote hurry up", err);
+  });
+}
+
+async function submitPartialAnswers(targetId) {
+  if (!game?.round || !game.round.questions) return;
+  if (me.id !== targetId) return;
+  if (game.round.submittedPlayerIds?.includes(me.id)) return;
+
+  const partial = [];
+  for (const q of game.round.questions) {
+    const draft = draftAnswersByQid.get(q.id);
+    const text = draft?.text?.trim();
+    const aboutId = draft?.aboutId;
+    if (!text || !aboutId) continue;
+    partial.push({
+      id: randId(),
+      authorId: me.id,
+      aboutId,
+      questionId: q.id,
+      text
+    });
+  }
+
+  await runTransaction(gameRef, (cur) => {
+    if (!cur?.round) return cur;
+    if (cur.phase !== "answering") return cur;
+
+    cur.round.submissions ??= [];
+    cur.round.submittedPlayerIds ??= [];
+    cur.round.hurryVotes ??= {};
+    cur.round.hurryDeadlines ??= {};
+
+    if (cur.round.submittedPlayerIds.includes(targetId)) return cur;
+
+    if (partial.length > 0) {
+      cur.round.submissions.push(...partial);
+    }
+    cur.round.submittedPlayerIds.push(targetId);
+
+    if (cur.round.hurryVotes[targetId]) {
+      delete cur.round.hurryVotes[targetId];
+    }
+    if (cur.round.hurryDeadlines[targetId]) {
+      delete cur.round.hurryDeadlines[targetId];
+    }
+
+    return cur;
+  }).catch(err => {
+    console.error("Failed to auto-submit partial answers", err);
+  });
+}
+
+function scheduleHurryTimeouts() {
+  hurryTimeouts.forEach(timeout => clearTimeout(timeout));
+  hurryTimeouts.clear();
+
+  if (game?.phase !== "answering" || !game?.round) return;
+  const deadlines = game.round.hurryDeadlines ?? {};
+
+  Object.entries(deadlines).forEach(([targetId, deadline]) => {
+    if (game.round.submittedPlayerIds?.includes(targetId)) return;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      if (me.id === targetId) {
+        submitPartialAnswers(targetId);
+      }
+      return;
+    }
+    if (me.id !== targetId) return;
+
+    const timeout = setTimeout(() => {
+      submitPartialAnswers(targetId);
+    }, remaining);
+    hurryTimeouts.set(targetId, timeout);
+  });
+
+  watchHurryCountdown();
+}
+
 function renderWaiting() {
   if (!game?.round) return;
 
   const submitted = game.round.submittedPlayerIds?.length ?? 0;
   const total = game.players.length;
+  const waitingFor = game.players.filter(p => !game.round.submittedPlayerIds?.includes(p.id));
+  const showHurry = game.phase === "answering" && hasSubmitted();
 
   $("submittedCount").textContent = submitted;
   $("totalCount").textContent = total;
 
   $("hostControlsWait").classList.toggle("hidden", !isHost());
   $("btnBeginReveal").disabled = !(isHost() && submitted >= total);
+
+  $("hurryUpPanel").classList.toggle("hidden", !showHurry);
+
+  const hurryList = $("hurryUpList");
+  hurryList.innerHTML = "";
+
+  if (showHurry) {
+    if (waitingFor.length === 0) {
+      hurryList.innerHTML = `<p class="hint">Everyone has submitted.</p>`;
+    } else {
+      waitingFor.forEach((player) => {
+        const votes = getHurryVoteCount(player.id);
+        const required = requiredHurryVotes();
+        const deadline = game.round.hurryDeadlines?.[player.id];
+        const remaining = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : null;
+        const alreadyVoted = !!game.round.hurryVotes?.[player.id]?.[me.id];
+
+        const block = document.createElement("div");
+        block.className = "answerBlock";
+
+        block.innerHTML = `
+          <div><strong>${escapeHtml(player.name)}</strong></div>
+          <div class="hint">Hurry Up Votes: ${votes} / ${required}</div>
+          ${deadline ? `<div class="hint">Countdown: ${remaining}s</div>` : ""}
+          <div class="row" style="margin-top: 10px;">
+            <button class="ghost" data-target="${player.id}" ${alreadyVoted ? "disabled" : ""}>
+              ${alreadyVoted ? "Voted" : "Vote Hurry Up"}
+            </button>
+          </div>
+        `;
+
+        const btn = block.querySelector("button");
+        if (btn) {
+          btn.addEventListener("click", () => voteHurry(player.id));
+        }
+        hurryList.appendChild(block);
+      });
+    }
+  }
 }
 
 function renderScore() {
@@ -1324,6 +1542,9 @@ function render() {
   renderWaiting();
   renderReveal();
   renderScore();
+
+  // Start or refresh any Hurry Up countdown timers for this client.
+  scheduleHurryTimeouts();
 
   // Only render the gameover UI when the game is actually over AND a winner is set.
   if (game.phase === "gameover" && game.winnerId) {

@@ -110,6 +110,11 @@
           Pick who each prompt is about, write your anonymous answer, then submit all.
           (Your name will NOT be shown to other players.)
         </p>
+
+        <div id="hurryWarning" class="panel hidden" style="border-color: #ff9f1a; background: rgba(255,154,26,0.08);">
+          <strong>The group voted to hurry things along.</strong>
+          <p class="hint" style="margin: 8px 0 0;">You have <span id="hurryRemaining">60</span> seconds to finish your answers.</p>
+        </div>
       </div>
 
       <div id="questionGrid" class="questionGrid"></div>
@@ -126,6 +131,12 @@
       </div>
       <p>Waiting for others…</p>
       <p><strong>Submitted:</strong> <span id="submittedCount">0</span>/<span id="totalCount">0</span></p>
+
+      <div class="panel hidden" id="hurryUpPanel">
+        <h3>Hurry Up</h3>
+        <p class="hint">Vote to hurry a slow player. If enough players agree, a 60-second countdown starts.</p>
+        <div id="hurryUpList" class="revealList"></div>
+      </div>
 
       <div class="panel hidden" id="hostControlsWait">
         <h3>Host Controls</h3>
